@@ -18,7 +18,7 @@ type mongoStore struct {
 
 // CreateMongoStore creates a store
 func CreateMongoStore(mongoURL, database string) (MessageStore, error) {
-	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURL))
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURL))
 	if err != nil {
 		return nil, err
 	}
@@ -26,41 +26,82 @@ func CreateMongoStore(mongoURL, database string) (MessageStore, error) {
 }
 
 func (m *mongoStore) Close() error {
-	return m.client.Disconnect(context.Background())
+	return m.client.Disconnect(context.TODO())
 }
 
 func (m *mongoStore) Save(delivery amqp.Delivery) error {
 	col := m.client.Database(m.database).Collection("msgs")
-	_, err := col.InsertOne(context.Background(), deliveryToBson(delivery))
+	if delivery.MessageId == "" {
+		_, err := col.InsertOne(context.TODO(), deliveryToBson(delivery))
+		return err
+	}
+	oid, _ := primitive.ObjectIDFromHex(delivery.MessageId)
+	_, err := col.UpdateOne(context.TODO(),
+		bson.M{
+			"_id": bson.M{
+				"$eq": oid,
+			},
+		},
+		bson.M{
+			"$inc": bson.M{
+				"Count": 1,
+			},
+			"$set": bson.M{
+				"Retrying": false,
+			},
+		})
 	return err
 }
 
-func (m *mongoStore) Retrieve(mq MessageQuery) ([]amqp.Publishing, error) {
+func (m *mongoStore) Retrieve(mq MessageQuery) ([]amqp.Delivery, error) {
 	col := m.client.Database(m.database).Collection("msgs")
-	cur, err := col.Find(context.Background(), bson.D{})
+	filter := bson.D{
+		{Key: "Retrying", Value: false},
+	}
+	cur, err := col.Find(context.TODO(), filter)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer cur.Close(context.Background())
-	results := []amqp.Publishing{}
-	for cur.Next(context.Background()) {
+	defer cur.Close(context.TODO())
+	results := []amqp.Delivery{}
+	for cur.Next(context.TODO()) {
 		var result bson.M
 		err := cur.Decode(&result)
 		if err != nil {
 			log.Fatal(err)
 		}
 		// do something with result....
-		results = append(results, bsonToPublishing(result))
+		results = append(results, bsonToDelivery(result))
 	}
 	if err := cur.Err(); err != nil {
 		log.Fatal(err)
 	}
+	_, err = col.UpdateMany(context.TODO(), filter, bson.M{
+		"$set": bson.M{
+			"Retrying": true,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
 	return results, nil
+}
+
+func messageQueryToFilter(mq MessageQuery) bson.M {
+	return bson.M{
+		"Retrying": bson.M{
+			"$eq": false,
+		},
+		"Count": bson.M{
+			"$lt": mq.MaxRetries,
+		},
+	}
 }
 
 func deliveryToBson(msg amqp.Delivery) bson.M {
 	return bson.M{
-		"Count":           0,
+		"Count":           1,
+		"Retrying":        false,
 		"Headers":         msg.Headers,
 		"MessageId":       msg.MessageId,
 		"ContentType":     msg.ContentType,
@@ -77,7 +118,9 @@ func deliveryToBson(msg amqp.Delivery) bson.M {
 	}
 }
 
-func bsonToPublishing(bson bson.M) amqp.Publishing {
+func bsonToDelivery(bson bson.M) amqp.Delivery {
+	id := bson["_id"].(primitive.ObjectID)
+	messageID := id.Hex()
 	primTime := bson["Timestamp"].(primitive.DateTime)
 	primBody := bson["Body"].(primitive.Binary)
 	primHeaders := bson["Headers"].(primitive.M)
@@ -85,9 +128,31 @@ func bsonToPublishing(bson bson.M) amqp.Publishing {
 	for k, v := range primHeaders {
 		headers[k] = v
 	}
-	return amqp.Publishing{
+	newXDeath := []interface{}{}
+	arr := primHeaders["x-death"].(primitive.A)
+	for _, elem := range arr {
+		elem := elem.(primitive.M)
+		newRoutingKeys := []interface{}{}
+		vArray := elem["routing-keys"].(primitive.A)
+		for _, va := range vArray {
+			newRoutingKeys = append(newRoutingKeys, va)
+		}
+		elemTime := elem["time"].(primitive.DateTime)
+		mapi := amqp.Table{
+			"queue":        elem["queue"].(string),
+			"reason":       elem["reason"].(string),
+			"routing-keys": newRoutingKeys,
+			"time":         elemTime.Time(),
+			"count":        elem["count"].(int64),
+			"exchange":     elem["exchange"].(string),
+		}
+		newXDeath = append(newXDeath, mapi)
+	}
+
+	headers["x-death"] = newXDeath
+	return amqp.Delivery{
 		Headers:         headers,
-		MessageId:       bson["MessageId"].(string),
+		MessageId:       messageID,
 		ContentType:     bson["ContentType"].(string),
 		ContentEncoding: bson["ContentEncoding"].(string),
 		DeliveryMode:    uint8(bson["DeliveryMode"].(int32)),

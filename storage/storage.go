@@ -5,12 +5,13 @@ import (
 )
 
 type MessageQuery struct {
-	Number int64
-	Page   int64
+	Number     int64
+	Page       int64
+	MaxRetries int64
 }
 
 type MessageStore interface {
 	Close() error
 	Save(amqp.Delivery) error
-	Retrieve(MessageQuery) ([]amqp.Publishing, error)
+	Retrieve(MessageQuery) ([]amqp.Delivery, error)
 }

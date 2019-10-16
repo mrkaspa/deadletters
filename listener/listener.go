@@ -89,48 +89,57 @@ func (l *Listener) Run() {
 
 	for msg := range l.msgs {
 		fmt.Printf("message arriven in DLX %+v\n", msg)
-		xDeath, ok := extractXDeath(msg.Headers)
+		_, count, retryQueue, ok := ExtractXDeathData(msg.Headers)
 		if !ok {
-			fmt.Println("error casting xdeath")
 			continue
 		}
-		count, ok := extractCount(xDeath)
-		if !ok {
-			fmt.Println("error casting count")
-			continue
-		}
-		retryQueue, ok := extractRoutingKey(xDeath)
-		if !ok {
-			fmt.Println("error casting retryq")
-			continue
-		}
-		if count <= l.maxRetries {
-			// retry again
-			fmt.Printf("count %d ... republishing\n", count)
-			l.ch.Publish("", retryQueue, false, false, amqp.Publishing{
-				Headers:         msg.Headers,
-				MessageId:       msg.MessageId,
-				ContentType:     msg.ContentType,
-				ContentEncoding: msg.ContentEncoding,
-				DeliveryMode:    msg.DeliveryMode,
-				CorrelationId:   msg.CorrelationId,
-				ReplyTo:         msg.ReplyTo,
-				Expiration:      msg.Expiration,
-				Timestamp:       msg.Timestamp,
-				Type:            msg.Type,
-				UserId:          msg.UserId,
-				AppId:           msg.AppId,
-				Body:            msg.Body,
-			})
+		if count < l.maxRetries {
+			Republish(l.ch, retryQueue, msg)
 		} else {
-			// store
-			fmt.Println("max retries reached ... storing")
 			err := l.store.Save(msg)
 			if err != nil {
-				fmt.Printf("Error storing message %s\n", err)
+				fmt.Printf("error saving %s\n", err)
 			}
 		}
 	}
+}
+
+func Republish(ch *amqp.Channel, retryQueue string, msg amqp.Delivery) error {
+	// retry again
+	return ch.Publish("", retryQueue, false, false, amqp.Publishing{
+		Headers:         msg.Headers,
+		MessageId:       msg.MessageId,
+		ContentType:     msg.ContentType,
+		ContentEncoding: msg.ContentEncoding,
+		DeliveryMode:    msg.DeliveryMode,
+		CorrelationId:   msg.CorrelationId,
+		ReplyTo:         msg.ReplyTo,
+		Expiration:      msg.Expiration,
+		Timestamp:       msg.Timestamp,
+		Type:            msg.Type,
+		UserId:          msg.UserId,
+		AppId:           msg.AppId,
+		Body:            msg.Body,
+	})
+}
+
+func ExtractXDeathData(headers amqp.Table) (amqp.Table, int64, string, bool) {
+	xDeath, ok := extractXDeath(headers)
+	if !ok {
+		fmt.Println("error casting xdeath")
+		return nil, 0, "", false
+	}
+	count, ok := extractCount(xDeath)
+	if !ok {
+		fmt.Println("error casting count")
+		return nil, 0, "", false
+	}
+	retryQueue, ok := extractRoutingKey(xDeath)
+	if !ok {
+		fmt.Println("error casting retryq")
+		return nil, 0, "", false
+	}
+	return xDeath, count, retryQueue, true
 }
 
 func extractXDeath(table amqp.Table) (amqp.Table, bool) {
@@ -166,8 +175,8 @@ func extractRoutingKey(data amqp.Table) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	rkeys, ok := val.([]interface{})
-	if !ok || len(rkeys) == 0 {
+	rkeys := val.([]interface{})
+	if len(rkeys) == 0 {
 		return "", false
 	}
 	return rkeys[0].(string), true
