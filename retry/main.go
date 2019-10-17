@@ -19,7 +19,9 @@ func main() {
 	mongoStore, err := storage.CreateMongoStore("mongodb://localhost:27017", "messages")
 	failOnError(err, "Error connecting to mongo")
 	defer mongoStore.Close()
-	results, err := mongoStore.Retrieve(storage.MessageQuery{})
+	results, err := mongoStore.Retrieve(storage.MessageQuery{
+		MaxRetries: 3,
+	})
 	failOnError(err, "Error getting results")
 
 	amqpConn := "amqp://guest:guest@localhost:5672/"

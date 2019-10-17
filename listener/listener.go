@@ -29,7 +29,7 @@ func Create(amqpConn, dlxName string, maxRetries int64, store storage.MessageSto
 	err = ch.ExchangeDeclare(
 		dlxName,  // name
 		"direct", // type
-		false,    // durable
+		true,     // durable
 		false,    // auto-deleted
 		false,    // internal
 		false,    // no-wait
@@ -38,7 +38,7 @@ func Create(amqpConn, dlxName string, maxRetries int64, store storage.MessageSto
 	queueDlxName := fmt.Sprintf("%s-queue", dlxName)
 	q, err := ch.QueueDeclare(
 		queueDlxName,
-		false,
+		true,
 		false,
 		true,
 		false,
@@ -68,6 +68,8 @@ func Create(amqpConn, dlxName string, maxRetries int64, store storage.MessageSto
 		false,  // no-wait
 		nil,    // args
 	)
+
+	ch.NotifyReturn()
 	if err != nil {
 		return nil, err
 	}

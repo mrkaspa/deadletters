@@ -1,21 +1,15 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"strings"
-	"time"
-
-	"github.com/mrkaspa/deadletters/storage"
-
-	"github.com/mrkaspa/deadletters/listener"
 
 	"github.com/streadway/amqp"
 )
 
 const (
-	queueName = "q-logs"
+	queueName = "q-log"
 	dlxName   = "a-dlx"
 )
 
@@ -26,16 +20,6 @@ func failOnError(err error, msg string) {
 }
 
 func main() {
-	mongoStore, err := storage.CreateMongoStore("mongodb://localhost:27017", "messages")
-	failOnError(err, "Error connecting to mongo")
-	results, err := mongoStore.Retrieve(storage.MessageQuery{})
-	failOnError(err, "Error getting results")
-	for _, msg := range results {
-		fmt.Printf("%+v\n", msg)
-	}
-}
-
-func main1() {
 	amqpConn := "amqp://guest:guest@localhost:5672/"
 	conn, err := amqp.Dial(amqpConn)
 	failOnError(err, "Failed to connect to RabbitMQ")
@@ -44,11 +28,6 @@ func main1() {
 	failOnError(err, "Failed to open a channel")
 	defer ch.Close()
 	emit(ch)
-	mongoStore, err := storage.CreateMongoStore("mongodb://localhost:27017", "messages")
-	failOnError(err, "Error connecting to mongo")
-	listener, err := listener.Create(amqpConn, dlxName, 3, mongoStore)
-	failOnError(err, "Error connecting to  rabbit")
-	go listener.Run()
 
 	body := bodyFrom(os.Args)
 	err = ch.Publish(
@@ -62,22 +41,16 @@ func main1() {
 		})
 	failOnError(err, "Failed to publish a message")
 	log.Printf(" [x] Sent %s", body)
-	timer := time.After(60 * time.Second)
-	for {
-		select {
-		case <-timer:
-			fmt.Println("Timeout")
-			break
-		}
-	}
+	waitChan := make(chan int)
+	<-waitChan
 }
 
 func emit(ch *amqp.Channel) {
 	_, err := ch.QueueDeclare(
 		queueName,
-		false,
-		false,
 		true,
+		false,
+		false,
 		false,
 		// nil,
 		amqp.Table{

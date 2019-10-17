@@ -55,9 +55,7 @@ func (m *mongoStore) Save(delivery amqp.Delivery) error {
 
 func (m *mongoStore) Retrieve(mq MessageQuery) ([]amqp.Delivery, error) {
 	col := m.client.Database(m.database).Collection("msgs")
-	filter := bson.D{
-		{Key: "Retrying", Value: false},
-	}
+	filter := messageQueryToFilter(mq)
 	cur, err := col.Find(context.TODO(), filter)
 	if err != nil {
 		log.Fatal(err)
