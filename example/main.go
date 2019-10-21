@@ -8,11 +8,6 @@ import (
 	"github.com/streadway/amqp"
 )
 
-const (
-	queueName = "q-log"
-	dlxName   = "a-dlx"
-)
-
 func failOnError(err error, msg string) {
 	if err != nil {
 		log.Fatalf("%s: %s", msg, err)
@@ -20,14 +15,16 @@ func failOnError(err error, msg string) {
 }
 
 func main() {
-	amqpConn := "amqp://guest:guest@localhost:5672/"
+	queueName := os.Getenv("EXAMPLE_QUEUE_NAME")
+	dlxName := os.Getenv("DLX_NAME")
+	amqpConn := os.Getenv("AMQP_URL")
 	conn, err := amqp.Dial(amqpConn)
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 	ch, err := conn.Channel()
 	failOnError(err, "Failed to open a channel")
 	defer ch.Close()
-	emit(ch)
+	emit(ch, queueName, dlxName)
 
 	body := bodyFrom(os.Args)
 	err = ch.Publish(
@@ -45,7 +42,7 @@ func main() {
 	<-waitChan
 }
 
-func emit(ch *amqp.Channel) {
+func emit(ch *amqp.Channel, queueName, dlxName string) {
 	_, err := ch.QueueDeclare(
 		queueName,
 		true,

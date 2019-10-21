@@ -68,8 +68,6 @@ func Create(amqpConn, dlxName string, maxRetries int64, store storage.MessageSto
 		false,  // no-wait
 		nil,    // args
 	)
-
-	ch.NotifyReturn()
 	if err != nil {
 		return nil, err
 	}
