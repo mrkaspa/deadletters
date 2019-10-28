@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/mrkaspa/deadletters/listener"
@@ -14,6 +15,10 @@ func failOnError(err error, msg string) {
 	if err != nil {
 		log.Fatalf("%s: %s", msg, err)
 	}
+}
+
+func healthCheck(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "ok")
 }
 
 func listenConnectionError(conn *amqp.Connection) {
@@ -39,7 +44,10 @@ func main() {
 	failOnError(err, "Error connecting to mongo")
 	listener, err := listener.Create(amqpConn, dlxName, 3, mongoStore)
 	failOnError(err, "Error connecting to rabbit")
-	conn.ConnectionState()
+
+	//running server
+	http.HandleFunc("/health", healthCheck)
+	go http.ListenAndServe(":8080", nil)
 	go listenConnectionError(conn)
 	listener.Run()
 }

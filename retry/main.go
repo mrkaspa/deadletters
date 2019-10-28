@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/mrkaspa/deadletters/listener"
 	"github.com/mrkaspa/deadletters/storage"
@@ -16,7 +17,8 @@ func failOnError(err error, msg string) {
 }
 
 func main() {
-	mongoStore, err := storage.CreateMongoStore("mongodb://localhost:27017", "messages")
+	mongoURL := os.Getenv("MONGODB_URL")
+	mongoStore, err := storage.CreateMongoStore(mongoURL, "messages")
 	failOnError(err, "Error connecting to mongo")
 	defer mongoStore.Close()
 	results, err := mongoStore.Retrieve(storage.MessageQuery{
@@ -24,7 +26,7 @@ func main() {
 	})
 	failOnError(err, "Error getting results")
 
-	amqpConn := "amqp://guest:guest@localhost:5672/"
+	amqpConn := os.Getenv("AMQP_URL")
 	conn, err := amqp.Dial(amqpConn)
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
