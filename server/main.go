@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -19,7 +20,7 @@ func listenConnectionError(conn *amqp.Connection) {
 	errChan := conn.NotifyClose(make(chan *amqp.Error))
 	for err := range errChan {
 		if err != nil && err.Recover == false {
-			panic("Se fue a la mierda")
+			panic(fmt.Sprintf("Connection error %s", err.Reason))
 		}
 	}
 }
