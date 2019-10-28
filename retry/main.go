@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/mrkaspa/deadletters/listener"
 	"github.com/mrkaspa/deadletters/storage"
@@ -17,12 +18,14 @@ func failOnError(err error, msg string) {
 }
 
 func main() {
+	maxGlobalRetries, err := strconv.ParseInt(os.Getenv("MAX_GLOBAL_RETRIES"), 10, 64)
+	failOnError(err, "Failed to get global retries")
 	mongoURL := os.Getenv("MONGODB_URL")
 	mongoStore, err := storage.CreateMongoStore(mongoURL, "messages")
 	failOnError(err, "Error connecting to mongo")
 	defer mongoStore.Close()
 	results, err := mongoStore.Retrieve(storage.MessageQuery{
-		MaxRetries: 3,
+		MaxRetries: maxGlobalRetries,
 	})
 	failOnError(err, "Error getting results")
 

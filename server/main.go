@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/mrkaspa/deadletters/listener"
 	"github.com/mrkaspa/deadletters/storage"
@@ -31,6 +32,8 @@ func listenConnectionError(conn *amqp.Connection) {
 }
 
 func main() {
+	maxAMQPRetries, err := strconv.ParseInt(os.Getenv("MAX_AMQP_RETRIES"), 10, 64)
+	failOnError(err, "Failed to get amqp retries")
 	amqpConn := os.Getenv("AMQP_URL")
 	dlxName := os.Getenv("DLX_NAME")
 	conn, err := amqp.Dial(amqpConn)
@@ -42,7 +45,7 @@ func main() {
 	mongoURL := os.Getenv("MONGODB_URL")
 	mongoStore, err := storage.CreateMongoStore(mongoURL, "messages")
 	failOnError(err, "Error connecting to mongo")
-	listener, err := listener.Create(amqpConn, dlxName, 3, mongoStore)
+	listener, err := listener.Create(amqpConn, dlxName, maxAMQPRetries, mongoStore)
 	failOnError(err, "Error connecting to rabbit")
 
 	//running server
