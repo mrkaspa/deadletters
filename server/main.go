@@ -15,6 +15,15 @@ func failOnError(err error, msg string) {
 	}
 }
 
+func listenConnectionError(conn *amqp.Connection) {
+	errChan := conn.NotifyClose(make(chan *amqp.Error))
+	for err := range errChan {
+		if err != nil && err.Recover == false {
+			panic("Se fue a la mierda")
+		}
+	}
+}
+
 func main() {
 	amqpConn := os.Getenv("AMQP_URL")
 	dlxName := os.Getenv("DLX_NAME")
@@ -29,5 +38,7 @@ func main() {
 	failOnError(err, "Error connecting to mongo")
 	listener, err := listener.Create(amqpConn, dlxName, 3, mongoStore)
 	failOnError(err, "Error connecting to rabbit")
+	conn.ConnectionState()
+	go listenConnectionError(conn)
 	listener.Run()
 }

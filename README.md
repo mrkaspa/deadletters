@@ -1,9 +1,14 @@
+# Deadletters
+
+This is a retry System for retrying amqp messages and store them in a mongo database if the retry limit is reached
+
 # Run Dev
 
 Ensure to have a rabbitmq installed
 
 ```
 docker run -d --hostname my-rabbit --name some-rabbit -p 15672:15672 -p 5672:5672 rabbitmq:3-management
+
 ```
 
 And a mongodb instance
