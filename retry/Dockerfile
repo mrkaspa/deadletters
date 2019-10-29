@@ -3,7 +3,7 @@ LABEL mainainter = "Michel Perez michel@liftit.co"
 
 RUN mkdir -p $GOPATH/liftitapp/dlserver
 WORKDIR $GOPATH/liftitapp/dlserver
-COPY ../ .
+COPY . .
 
 RUN export GO111MODULE=on
 WORKDIR $GOPATH/liftitapp/dlserver/retry
