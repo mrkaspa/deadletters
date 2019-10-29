@@ -81,7 +81,7 @@ func Create(amqpConn, dlxName string, maxRetries int64, store storage.MessageSto
 	return &l, nil
 }
 
-// Run the listener
+// Run the listener and listens for messages incoming in the dlx and reprocess them having in count the x-death header
 func (l *Listener) Run() {
 	fmt.Println("Starting DLX Listener")
 	defer l.conn.Close()
@@ -104,6 +104,7 @@ func (l *Listener) Run() {
 	}
 }
 
+// Republish a message in the queue
 func Republish(ch *amqp.Channel, retryQueue string, msg amqp.Delivery) error {
 	// retry again
 	return ch.Publish("", retryQueue, false, false, amqp.Publishing{
@@ -123,6 +124,7 @@ func Republish(ch *amqp.Channel, retryQueue string, msg amqp.Delivery) error {
 	})
 }
 
+// ExtractXDeathData extract the x-death header information from the message headers
 func ExtractXDeathData(headers amqp.Table) (amqp.Table, int64, string, bool) {
 	xDeath, ok := extractXDeath(headers)
 	if !ok {

@@ -16,7 +16,7 @@ type mongoStore struct {
 	database string
 }
 
-// CreateMongoStore creates a store
+// CreateMongoStore creates a store providing a mongo url and a mongo database name
 func CreateMongoStore(mongoURL, database string) (MessageStore, error) {
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURL))
 	if err != nil {
@@ -25,10 +25,12 @@ func CreateMongoStore(mongoURL, database string) (MessageStore, error) {
 	return &mongoStore{client: client, database: database}, nil
 }
 
+// Close the mongo store
 func (m *mongoStore) Close() error {
 	return m.client.Disconnect(context.TODO())
 }
 
+// Save a Delivery struct on mongo
 func (m *mongoStore) Save(delivery amqp.Delivery) error {
 	col := m.client.Database(m.database).Collection("msgs")
 	if delivery.MessageId == "" {
@@ -53,6 +55,7 @@ func (m *mongoStore) Save(delivery amqp.Delivery) error {
 	return err
 }
 
+// Retrive many Delivery structs stored in mongo
 func (m *mongoStore) Retrieve(mq MessageQuery) ([]amqp.Delivery, error) {
 	col := m.client.Database(m.database).Collection("msgs")
 	filter := messageQueryToFilter(mq)
