@@ -43,7 +43,7 @@ func main() {
 	failOnError(err, "Failed to open a channel")
 	defer ch.Close()
 	mongoURL := os.Getenv("MONGODB_URL")
-	mongoStore, err := storage.CreateMongoStore(mongoURL, "messages")
+	mongoStore, err := storage.CreateMongoStore(mongoURL, os.Getenv("MONGODB_DATABASE"))
 	failOnError(err, "Error connecting to mongo")
 	listener, err := listener.Create(amqpConn, dlxName, maxAMQPRetries, mongoStore)
 	failOnError(err, "Error connecting to rabbit")

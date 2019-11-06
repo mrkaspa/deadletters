@@ -21,7 +21,7 @@ func main() {
 	maxGlobalRetries, err := strconv.ParseInt(os.Getenv("MAX_GLOBAL_RETRIES"), 10, 64)
 	failOnError(err, "Failed to get global retries")
 	mongoURL := os.Getenv("MONGODB_URL")
-	mongoStore, err := storage.CreateMongoStore(mongoURL, "messages")
+	mongoStore, err := storage.CreateMongoStore(mongoURL, os.Getenv("MONGODB_DATABASE"))
 	failOnError(err, "Error connecting to mongo")
 	defer mongoStore.Close()
 	results, err := mongoStore.Retrieve(storage.MessageQuery{
